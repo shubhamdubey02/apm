@@ -15,9 +15,9 @@ import (
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 
-	"github.com/MetalBlockchain/apm/apm"
-	"github.com/MetalBlockchain/apm/config"
-	"github.com/MetalBlockchain/apm/constant"
+	"github.com/shubhamdubey02/apm/apm"
+	"github.com/shubhamdubey02/apm/config"
+	"github.com/shubhamdubey02/apm/constant"
 )
 
 var (

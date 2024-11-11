@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/MetalBlockchain/apm/git"
+	"github.com/shubhamdubey02/apm/git"
 )
 
 var _ RepositoryFactory = repositoryFactory{}

@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/afero"
 
-	"github.com/MetalBlockchain/apm/git"
-	"github.com/MetalBlockchain/apm/state"
+	"github.com/shubhamdubey02/apm/git"
+	"github.com/shubhamdubey02/apm/state"
 )
 
 type UpgradeConfig struct {

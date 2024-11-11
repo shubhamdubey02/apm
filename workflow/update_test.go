@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/MetalBlockchain/apm/git"
-	"github.com/MetalBlockchain/apm/state"
+	"github.com/shubhamdubey02/apm/git"
+	"github.com/shubhamdubey02/apm/state"
 )
 
 func TestUpdateExecute(t *testing.T) {
