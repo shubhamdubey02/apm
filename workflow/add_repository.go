@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-git/go-git/v5/plumbing"
 
-	"github.com/shubhamdubey02/apm/state"
+	"github.com/shubhamdubey02/apm/storage"
 )
 
 var _ Workflow = AddRepository{}
@@ -23,28 +23,31 @@ func NewAddRepository(config AddRepositoryConfig) *AddRepository {
 }
 
 type AddRepositoryConfig struct {
-	SourcesList map[string]*state.SourceInfo
+	SourcesList storage.Storage[storage.SourceInfo]
 	Alias, URL  string
 	Branch      plumbing.ReferenceName
 }
 
 type AddRepository struct {
-	sourcesList map[string]*state.SourceInfo
+	sourcesList storage.Storage[storage.SourceInfo]
 	alias, url  string
 	branch      plumbing.ReferenceName
 }
 
 func (a AddRepository) Execute() error {
-	if _, ok := a.sourcesList[a.alias]; ok {
+	aliasBytes := []byte(a.alias)
+
+	if ok, err := a.sourcesList.Has(aliasBytes); err != nil {
+		return err
+	} else if ok {
 		return fmt.Errorf("%s is already registered as a repository", a.alias)
 	}
 
-	unsynced := &state.SourceInfo{
+	unsynced := storage.SourceInfo{
+		Alias:  a.alias,
 		URL:    a.url,
 		Branch: a.branch,
-		Commit: plumbing.ZeroHash.String(), // hasn't been synced yet
+		Commit: plumbing.ZeroHash, // hasn't been synced yet
 	}
-
-	a.sourcesList[a.alias] = unsynced
-	return nil
+	return a.sourcesList.Put(aliasBytes, unsynced)
 }

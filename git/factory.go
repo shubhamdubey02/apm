@@ -13,13 +13,12 @@ import (
 )
 
 type Factory interface {
-	GetRepository(url string, path string, reference plumbing.ReferenceName, auth *http.BasicAuth) (string, error)
-	GetLastModified(repoPath string, filePath string) (string, error)
+	GetRepository(url string, path string, reference plumbing.ReferenceName, auth *http.BasicAuth) (plumbing.Hash, error)
 }
 
 type RepositoryFactory struct{}
 
-func (f RepositoryFactory) GetRepository(url string, path string, reference plumbing.ReferenceName, auth *http.BasicAuth) (string, error) {
+func (f RepositoryFactory) GetRepository(url string, path string, reference plumbing.ReferenceName, auth *http.BasicAuth) (plumbing.Hash, error) {
 	var repo *git.Repository
 
 	switch _, err := os.Stat(path); err {
@@ -27,11 +26,11 @@ func (f RepositoryFactory) GetRepository(url string, path string, reference plum
 		// already exists, so we need to check out the latest changes
 		repo, err = git.PlainOpen(path)
 		if err != nil {
-			return "", err
+			return plumbing.ZeroHash, err
 		}
 		worktree, err := repo.Worktree()
 		if err != nil {
-			return "", err
+			return plumbing.ZeroHash, err
 		}
 		if err := worktree.Pull(
 			// TODO use fetch + checkout instead of pull
@@ -43,7 +42,7 @@ func (f RepositoryFactory) GetRepository(url string, path string, reference plum
 				Progress:      io.Discard,
 			},
 		); err != nil && err != git.NoErrAlreadyUpToDate {
-			return "", err
+			return plumbing.ZeroHash, err
 		}
 	default:
 		if os.IsNotExist(err) {
@@ -56,40 +55,17 @@ func (f RepositoryFactory) GetRepository(url string, path string, reference plum
 				Progress:      io.Discard,
 			})
 			if err != nil {
-				return "", err
+				return plumbing.ZeroHash, err
 			}
 		} else {
-			return "", err
+			return plumbing.ZeroHash, err
 		}
 	}
 
 	head, err := repo.Head()
 	if err != nil {
-		return "", err
+		return plumbing.ZeroHash, err
 	}
 
-	return head.Hash().String(), nil
-}
-
-func (f RepositoryFactory) GetLastModified(repoAbsolutePath string, fileRelativePath string) (string, error) {
-	repo, err := git.PlainOpen(repoAbsolutePath)
-	if err != nil {
-		return "", err
-	}
-
-	itr, err := repo.Log(&git.LogOptions{
-		PathFilter: func(s string) bool {
-			return s == fileRelativePath
-		},
-	})
-	if err != nil {
-		return "", err
-	}
-
-	commit, err := itr.Next()
-	if err != nil {
-		return "", err
-	}
-
-	return commit.Hash.String(), nil
+	return head.Hash(), nil
 }

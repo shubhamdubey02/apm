@@ -3,18 +3,21 @@
 
 package types
 
+import "github.com/MetalBlockchain/metalgo/version"
+
 var _ Definition = &VM{}
 
 type VM struct {
-	ID            string   `yaml:"id"`
-	Alias         string   `yaml:"alias"`
-	Homepage      string   `yaml:"homepage"`
-	Description   string   `yaml:"description"`
-	Maintainers   []string `yaml:"maintainers"`
-	InstallScript string   `yaml:"installScript"`
-	BinaryPath    string   `yaml:"binaryPath"`
-	URL           string   `yaml:"url"`
-	SHA256        string   `yaml:"sha256"`
+	ID            string           `yaml:"id"`
+	Alias         string           `yaml:"alias"`
+	Homepage      string           `yaml:"homepage"`
+	Description   string           `yaml:"description"`
+	Maintainers   []string         `yaml:"maintainers"`
+	InstallScript string           `yaml:"installScript"`
+	BinaryPath    string           `yaml:"binaryPath"`
+	URL           string           `yaml:"url"`
+	SHA256        string           `yaml:"sha256"`
+	Version       version.Semantic `yaml:"version"`
 }
 
 func (vm VM) GetID() string {

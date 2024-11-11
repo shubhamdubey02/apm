@@ -4,6 +4,7 @@
 package types
 
 type Definition interface {
+	GetID() string
 	GetAlias() string
 	GetHomepage() string
 	GetDescription() string

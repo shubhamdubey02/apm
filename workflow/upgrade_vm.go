@@ -6,12 +6,12 @@ package workflow
 import (
 	"errors"
 	"fmt"
-	"os"
 
+	"github.com/MetalBlockchain/metalgo/database"
 	"github.com/spf13/afero"
 
-	"github.com/shubhamdubey02/apm/git"
-	"github.com/shubhamdubey02/apm/state"
+	"github.com/shubhamdubey02/apm/storage"
+	"github.com/shubhamdubey02/apm/types"
 	"github.com/shubhamdubey02/apm/util"
 )
 
@@ -20,28 +20,26 @@ var ErrAlreadyUpdated = errors.New("already up-to-date")
 type UpgradeVMConfig struct {
 	Executor Executor
 
-	FullVMName  string
-	RepoFactory state.RepositoryFactory
-	StateFile   state.File
+	FullVMName   string
+	RepoFactory  storage.RepositoryFactory
+	InstalledVMs storage.Storage[storage.InstallInfo]
 
 	TmpPath    string
 	PluginPath string
 	Installer  Installer
 	Fs         afero.Fs
-	Git        git.Factory
 }
 
 func NewUpgradeVM(config UpgradeVMConfig) *UpgradeVM {
 	return &UpgradeVM{
-		executor:    config.Executor,
-		fullVMName:  config.FullVMName,
-		repoFactory: config.RepoFactory,
-		stateFile:   config.StateFile,
-		tmpPath:     config.TmpPath,
-		pluginPath:  config.PluginPath,
-		installer:   config.Installer,
-		fs:          config.Fs,
-		git:         config.Git,
+		executor:     config.Executor,
+		fullVMName:   config.FullVMName,
+		repoFactory:  config.RepoFactory,
+		installedVMs: config.InstalledVMs,
+		tmpPath:      config.TmpPath,
+		pluginPath:   config.PluginPath,
+		installer:    config.Installer,
+		fs:           config.Fs,
 	}
 }
 
@@ -49,74 +47,75 @@ type UpgradeVM struct {
 	fullVMName string
 	executor   Executor
 
-	repoFactory state.RepositoryFactory
+	repoFactory storage.RepositoryFactory
 
-	stateFile state.File
+	installedVMs storage.Storage[storage.InstallInfo]
 
 	tmpPath    string
 	pluginPath string
 
 	installer Installer
 	fs        afero.Fs
-	git       git.Factory
 }
 
 func (u *UpgradeVM) Execute() error {
-	installInfo := u.stateFile.InstallationRegistry[u.fullVMName]
-
-	repoAlias, vmName := util.ParseQualifiedName(u.fullVMName)
-	organization, repo := util.ParseAlias(repoAlias)
-
-	repository, err := u.repoFactory.GetRepository(repoAlias)
-	if errors.Is(err, os.ErrNotExist) {
-		fmt.Printf("Warning - found a repository %s while upgrading %s "+
-			"which is no longer downloaded. You might need to re-add this "+
-			"repository and call update, or uninstall this vm to avoid noisy logs. "+
-			"Skipping...\n", repoAlias, u.fullVMName)
-		return nil
-	} else if err != nil {
-		return err
-	}
-
-	if _, err := repository.GetVM(vmName); err != nil {
-		fmt.Printf("Warning - found a vm while upgrading %s which is no "+
-			"longer registered in a repository. You should uninstall this VM to "+
-			"avoid noisy logs. Skipping...\n", u.fullVMName)
-		return nil
-	}
-
-	latest, err := u.git.GetLastModified(repository.GetPath(), fmt.Sprintf("vms/%s.%s", vmName, "yaml"))
+	installInfo, err := u.installedVMs.Get([]byte(u.fullVMName))
 	if err != nil {
 		return err
 	}
 
-	if installInfo.Commit == latest {
-		return ErrAlreadyUpdated
+	repoAlias, vmName := util.ParseQualifiedName(u.fullVMName)
+	organization, repo := util.ParseAlias(repoAlias)
+
+	var definition storage.Definition[types.VM]
+
+	repository := u.repoFactory.GetRepository([]byte(repoAlias))
+	definition, err = repository.VMs.Get([]byte(vmName))
+	if err == database.ErrNotFound {
+		fmt.Printf("Warning - found a vm while upgrading %s which is no longer registered in a repository. You should uninstall this VM to avoid noisy logs. Skipping...\n", u.fullVMName)
+		return nil
+	}
+	if err != nil {
+		return err
 	}
 
-	fmt.Printf(
-		"Detected an upgrade for %s from %s to %s\n",
-		u.fullVMName,
-		installInfo.Commit,
-		latest,
-	)
-	wf := NewInstall(InstallConfig{
-		Name:         u.fullVMName,
-		Plugin:       vmName,
-		Organization: organization,
-		Repo:         repo,
-		TmpPath:      u.tmpPath,
-		PluginPath:   u.pluginPath,
-		StateFile:    u.stateFile,
-		Repository:   repository,
-		Installer:    u.installer,
-		Fs:           u.fs,
-	})
+	upgradedVM := definition.Definition
 
-	fmt.Printf(
-		"Rebuilding binaries for %s@%s\n",
-		u.fullVMName,
-		latest,
-	)
-	return u.executor.Execute(wf)
+	if installInfo.Version.Compare(&upgradedVM.Version) < 0 {
+		fmt.Printf(
+			"Detected an upgrade for %s from v%v.%v.%v to v%v.%v.%v.\n",
+			u.fullVMName,
+			installInfo.Version.Major,
+			installInfo.Version.Minor,
+			installInfo.Version.Patch,
+			upgradedVM.Version.Major,
+			upgradedVM.Version.Minor,
+			upgradedVM.Version.Patch,
+		)
+		installWorkflow := NewInstall(InstallConfig{
+			Name:         u.fullVMName,
+			Plugin:       vmName,
+			Organization: organization,
+			Repo:         repo,
+			TmpPath:      u.tmpPath,
+			PluginPath:   u.pluginPath,
+			InstalledVMs: u.installedVMs,
+			VMStorage:    repository.VMs,
+			Installer:    u.installer,
+			Fs:           u.fs,
+		})
+
+		fmt.Printf(
+			"Rebuilding binaries for %s v%v.%v.%v.\n",
+			u.fullVMName,
+			upgradedVM.Version.Major,
+			upgradedVM.Version.Minor,
+			upgradedVM.Version.Patch,
+		)
+		if err := u.executor.Execute(installWorkflow); err != nil {
+			return err
+		}
+	}
+
+	return ErrAlreadyUpdated
 }

@@ -3,21 +3,22 @@
 
 package types
 
+// import "github.com/MetalBlockchain/metalgo/subnets"
+//
 var _ Definition = &Subnet{}
 
 type Subnet struct {
-	ID          map[string]string `yaml:"id"`
-	Alias       string            `yaml:"alias"`
-	Homepage    string            `yaml:"homepage"`
-	Description string            `yaml:"description"`
-	Maintainers []string          `yaml:"maintainers"`
-	VMs         []string          `yaml:"vms"`
+	ID          string   `yaml:"id"`
+	Alias       string   `yaml:"alias"`
+	Homepage    string   `yaml:"homepage"`
+	Description string   `yaml:"description"`
+	Maintainers []string `yaml:"maintainers"`
+	VMs         []string `yaml:"vms"`
 	// Config      subnets.SubnetConfig `yaml:"config,omitempty"`
 }
 
-func (s Subnet) GetID(network string) (string, bool) {
-	id, ok := s.ID[network]
-	return id, ok
+func (s Subnet) GetID() string {
+	return s.ID
 }
 
 func (s Subnet) GetAlias() string {
